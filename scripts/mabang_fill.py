@@ -408,8 +408,10 @@ async def main():
         frame = await iframe_el.content_frame()
         await frame.wait_for_timeout(2000)
 
-        log("Filling fields...")
+        log("Filling text fields...")
         for field_name, value in data.items():
+            if field_name == "countryNameEN":
+                continue
             try:
                 el = await frame.query_selector(
                     f'input[name="{field_name}"], textarea[name="{field_name}"]'
@@ -423,6 +425,147 @@ async def main():
                     log(f"  SKIP: {field_name} not found on form")
             except Exception as e:
                 log(f"  ERR: {field_name}: {str(e)[:60]}")
+
+        # --- Country dropdown (xm-select component) ---
+        country = data.get("countryNameEN", "")
+        if country:
+            log(f"  Selecting country: {country}")
+            try:
+                # Click xm-select to open it
+                xm = await frame.query_selector("#selectSignleDemo xm-select")
+                if xm:
+                    await xm.click()
+                    await frame.wait_for_timeout(500)
+                    # Type in search box to filter
+                    search_input = await frame.query_selector("#selectSignleDemo .xm-search-input")
+                    if search_input:
+                        await search_input.fill(country)
+                        await frame.wait_for_timeout(500)
+                    # Click matching option
+                    matched = await frame.evaluate("""(country) => {
+                        const options = document.querySelectorAll('#selectSignleDemo .xm-option');
+                        for (const opt of options) {
+                            if (opt.style.display === 'none') continue;
+                            const text = opt.querySelector('.xm-option-content');
+                            if (text && text.textContent.includes(country)) {
+                                opt.click();
+                                return text.textContent.trim();
+                            }
+                        }
+                        return null;
+                    }""", country)
+                    if matched:
+                        log(f"  OK: country = {matched}")
+                    else:
+                        log(f"  SKIP: country '{country}' not found in xm-select")
+                else:
+                    log("  SKIP: xm-select not found")
+            except Exception as e:
+                log(f"  ERR: country: {str(e)[:80]}")
+
+        # --- Shop dropdown: select "售后(Global区域)" ---
+        log("  Selecting shop: 售后(Global区域)")
+        try:
+            # Click caret to open dropdown
+            caret = await frame.query_selector(".shop-select .caret-dropdown")
+            if caret:
+                await caret.click()
+                await frame.wait_for_timeout(800)
+            # Click the target li
+            shop_matched = await frame.evaluate("""() => {
+                const ul = document.querySelector('.shop-select .select_copy_control');
+                if (!ul) return 'no ul';
+                const lis = ul.querySelectorAll('li');
+                for (const li of lis) {
+                    if (li.getAttribute('oliname') === '售后(Global区域)') {
+                        const a = li.querySelector('a');
+                        if (a) a.click();
+                        return '售后(Global区域)';
+                    }
+                }
+                return null;
+            }""")
+            if shop_matched and shop_matched != 'no ul':
+                log(f"  OK: shop = {shop_matched}")
+                # Also set the display text
+                await frame.evaluate("""() => {
+                    const input = document.getElementById('shopIdname');
+                    if (input) input.value = '售后(Global区域)';
+                }""")
+            else:
+                log(f"  WARN: shop match failed: {shop_matched}")
+        except Exception as e:
+            log(f"  ERR: shop: {str(e)[:80]}")
+
+        # --- Wait for salesman field to appear, then fill ---
+        log("  Filling salesman: 赖丹")
+        try:
+            await frame.wait_for_timeout(1500)
+            # Remove hide class if present
+            await frame.evaluate("""() => {
+                const div = document.querySelector('.sellerName');
+                if (div) div.classList.remove('hide');
+            }""")
+            await frame.wait_for_timeout(500)
+            seller_input = await frame.query_selector('input[name="sellerName"]')
+            if seller_input:
+                await seller_input.click()
+                await seller_input.fill("赖丹")
+                log("  OK: sellerName = 赖丹")
+            else:
+                log("  SKIP: sellerName input not found")
+        except Exception as e:
+            log(f"  ERR: sellerName: {str(e)[:80]}")
+
+        # --- Custom category: check "售后(补发/换货...)" ---
+        log("  Selecting category: 售后(补发/换货...)")
+        try:
+            checked = await frame.evaluate("""() => {
+                const labels = document.querySelectorAll('label.checkbox-inline');
+                for (const label of labels) {
+                    if (label.textContent.includes('售后(补发/换货')) {
+                        const cb = label.querySelector('input[type="checkbox"]');
+                        if (cb && !cb.checked) cb.click();
+                        return true;
+                    }
+                }
+                return false;
+            }""")
+            if checked:
+                log("  OK: category = 售后(补发/换货...)")
+            else:
+                log("  SKIP: category checkbox not found")
+        except Exception as e:
+            log(f"  ERR: category: {str(e)[:80]}")
+
+        # --- Payment time: set to today ---
+        log("  Setting payment time to today...")
+        try:
+            from datetime import datetime, timezone, timedelta
+            tz = timezone(timedelta(hours=8))
+            now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+            paid_input = await frame.query_selector("#paidTime")
+            if paid_input:
+                await paid_input.click()
+                await frame.wait_for_timeout(500)
+                # Try clicking "今天" button in WdatePicker
+                today_clicked = await frame.evaluate("""() => {
+                    // WdatePicker creates elements in parent document
+                    return false;
+                }""")
+                # Directly set the value via JS
+                await frame.evaluate("""(val) => {
+                    const el = document.getElementById('paidTime');
+                    if (el) {
+                        el.value = val;
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                }""", now)
+                log(f"  OK: paidTime = {now}")
+            else:
+                log("  SKIP: paidTime input not found")
+        except Exception as e:
+            log(f"  ERR: paidTime: {str(e)[:80]}")
 
         log("DONE - all fields filled!")
 
