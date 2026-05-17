@@ -195,6 +195,7 @@ FIELD_RULES = [
 
     # street1 - 地址
     ("Street Address", "street1"),
+    ("Street", "street1"),
     ("Indirizzo", "street1"),
     ("Dirección", "street1"),
     ("Endereço", "street1"),
@@ -258,8 +259,9 @@ def read_excel():
             if not parts:
                 continue
             key, value = parts[0].strip(), parts[1].strip()
+            key_lower = key.lower()
             for label, field_name in FIELD_RULES:
-                if label in key:
+                if label.lower() in key_lower:
                     data[field_name] = value
                     break
     return data
