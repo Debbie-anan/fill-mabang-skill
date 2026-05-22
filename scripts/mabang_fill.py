@@ -21,6 +21,29 @@ SESSION_DIR = os.environ.get(
 ORDER_URL = "https://private.mabangerp.com/index.php?mod=order.add"
 CDP_PORT = int(os.environ.get("MABANG_CDP_PORT", "9222"))
 
+COUNTRY_ALIASES = {
+    "USA": "United States",
+    "US": "United States",
+    "U.S.A.": "United States",
+    "U.S.": "United States",
+    "America": "United States",
+    "UK": "United Kingdom",
+    "U.K.": "United Kingdom",
+    "England": "United Kingdom",
+    "Great Britain": "United Kingdom",
+    "GB": "United Kingdom",
+    "UAE": "United Arab Emirates",
+    "Korea": "South Korea",
+    "Republic of Korea": "South Korea",
+    "ROC": "Taiwan",
+    "Holland": "Netherlands",
+    "The Netherlands": "Netherlands",
+    "Czech Republic": "Czech",
+    "Czechia": "Czech",
+    "Russia": "Russian Federation",
+    "Россия": "Russian Federation",
+}
+
 FIELD_RULES = [
     # buyerName - 收件人姓名
     ("Vollständiger Name des Empfängers", "buyerName"),
@@ -431,6 +454,7 @@ async def main():
         # --- Country dropdown (xm-select component) ---
         country = data.get("countryNameEN", "")
         if country:
+            country = COUNTRY_ALIASES.get(country.strip(), country)
             log(f"  Selecting country: {country}")
             try:
                 # Click xm-select to open it
